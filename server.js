@@ -1,4 +1,3 @@
-// server.js
 import express from "express";
 import cors from "cors";
 import multer from "multer";
@@ -8,7 +7,7 @@ import dotenv from "dotenv";
 import qrcode from "qrcode";
 import nodemailer from "nodemailer";
 import { fileURLToPath } from "url";
-import { generateFinalImage } from "./generateImage.js"; // ✅ use Firefly version
+import { generateFinalImage } from "./generateImage.js"; // ✅ Firefly version
 
 dotenv.config();
 
@@ -44,13 +43,13 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // ==============================
-// 📧 Setup Nodemailer Transporter
+// 📧 Nodemailer setup
 // ==============================
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // App password (not your Gmail password!)
+    pass: process.env.EMAIL_PASS, // Gmail App Password
   },
 });
 
@@ -62,9 +61,7 @@ app.post("/api/upload", upload.single("selfie"), async (req, res) => {
 
   try {
     if (!req.file) {
-      return res
-        .status(400)
-        .json({ success: false, error: "No file uploaded" });
+      return res.status(400).json({ success: false, error: "No file uploaded" });
     }
 
     const inputPath = req.file.path;
@@ -74,11 +71,9 @@ app.post("/api/upload", upload.single("selfie"), async (req, res) => {
 
     // ✅ Process image using Adobe Firefly API
     const resultPath = await generateFinalImage(inputPath, theme);
-    const publicUrl = `${req.protocol}://${req.get(
-      "host"
-    )}/public/${path.basename(resultPath)}`;
+    const publicUrl = `${req.protocol}://${req.get("host")}/public/${path.basename(resultPath)}`;
 
-    // ✅ Generate QR code for download
+    // ✅ Generate QR code
     let qrDataUrl = null;
     try {
       qrDataUrl = await qrcode.toDataURL(publicUrl);
@@ -86,18 +81,14 @@ app.post("/api/upload", upload.single("selfie"), async (req, res) => {
       console.error("⚠️ QR code generation failed:", qrErr.message);
     }
 
-    // ✅ Send email if address provided
+    // ✅ Send email if provided
     if (email) {
       const htmlContent = `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
           <h2>Hi ${name || "there"} 👋</h2>
           <p>Your AI Selfie Booth photo is ready!</p>
           <p><b>Theme:</b> ${theme}</p>
-          ${
-            qrDataUrl
-              ? `<img src="${qrDataUrl}" alt="QR Code" width="150" />`
-              : ""
-          }
+          ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR Code" width="150" />` : ""}
           <p>Click below to view your photo:</p>
           <a href="${publicUrl}" style="display:inline-block;background:#00c4cc;color:#fff;padding:10px 20px;border-radius:5px;text-decoration:none;">View Image</a>
           <br/><br/>
@@ -106,27 +97,24 @@ app.post("/api/upload", upload.single("selfie"), async (req, res) => {
         </div>
       `;
 
-      try {
-        await transporter.sendMail({
-          from: `"AI Selfie Booth" <${process.env.EMAIL_USER}>`,
-          to: email,
-          subject: "🎉 Your AI Selfie Booth Photo is Ready!",
-          html: htmlContent,
-        });
-        console.log(`📨 Email sent successfully to ${email}`);
-      } catch (mailErr) {
-        console.error("❌ Email send failed:", mailErr.message);
-      }
+      await transporter.sendMail({
+        from: `"AI Selfie Booth" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "🎉 Your AI Selfie Booth Photo is Ready!",
+        html: htmlContent,
+      });
+
+      console.log(`📨 Email sent successfully to ${email}`);
     } else {
       console.warn("⚠️ No email provided — skipping email send.");
     }
 
-    // ✅ Delete uploaded input image after processing
+    // ✅ Delete temp file
     fs.unlink(inputPath, (err) => {
       if (err) console.error("⚠️ Failed to delete temp file:", err.message);
     });
 
-    // ✅ Respond to frontend
+    // ✅ Respond
     res.json({
       success: true,
       theme,
@@ -135,12 +123,16 @@ app.post("/api/upload", upload.single("selfie"), async (req, res) => {
       qrDataUrl,
     });
   } catch (err) {
-    console.error("❌ /api/upload route failed:", err.message);
-    res.status(500).json({
-      success: false,
-      error: err.message || "Failed to process selfie",
-    });
+    console.error("❌ /api/upload failed:", err.message);
+    res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// ==============================
+// 🏠 Root Route
+// ==============================
+app.get("/", (req, res) => {
+  res.send("✅ AI Selfie Booth backend running successfully on Render!");
 });
 
 // ==============================
